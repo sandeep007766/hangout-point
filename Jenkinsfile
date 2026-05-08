@@ -1,12 +1,13 @@
 pipeline {
     agent any
 
-    environment {
-        IMAGE_NAME = "hangout-app"
-        CONTAINER_NAME = "hangout-container"
-    }
-
     stages {
+
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
 
         stage('Checkout Code') {
             steps {
@@ -15,63 +16,50 @@ pipeline {
             }
         }
 
-        stage('Clean Old Container') {
+        stage('Test') {
             steps {
-                script {
-                    sh '''
-                    docker rm -f $CONTAINER_NAME || true
-                    '''
-                }
+                sh '''
+                chmod +x test.sh
+                ./test.sh
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh '''
-                    docker build -t $IMAGE_NAME .
-                    '''
-                }
+                sh '''
+                docker build -t hangout-app .
+                '''
             }
         }
 
-        stage('Run Tests') {
+        stage('Stop Old Container') {
             steps {
-                script {
-                    sh '''
-                    if [ -f test.sh ]; then
-                        chmod +x test.sh
-                        ./test.sh
-                    else
-                        echo "No tests found, skipping..."
-                    fi
-                    '''
-                }
+                sh '''
+                docker rm -f hangout-container || true
+                '''
             }
         }
 
-        stage('Deploy Container') {
+        stage('Run New Container') {
             steps {
-                script {
-                    sh '''
-                    docker run -d --name $CONTAINER_NAME -p 80:80 $IMAGE_NAME
-                    '''
-                }
+                sh '''
+                docker run -d --name hangout-container -p 80:80 hangout-app
+                '''
             }
         }
     }
 
     post {
         success {
-            echo '🚀 Deployment Successful'
+            echo "✅ Pipeline SUCCESS - App deployed successfully"
         }
 
         failure {
-            echo '❌ Pipeline Failed'
+            echo "❌ Pipeline FAILED - Check logs"
         }
 
         always {
-            echo '🧹 Cleaning workspace'
             cleanWs()
         }
     }
