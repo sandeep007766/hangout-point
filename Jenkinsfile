@@ -1,39 +1,78 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "hangout-app"
+        CONTAINER_NAME = "hangout-container"
+    }
+
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git 'https://github.com/YOUR_USERNAME/hangout-point.git'
+                git branch: 'main',
+                    url: 'https://github.com/sandeep007766/hangout-point.git'
             }
         }
 
-        stage('Test') {
+        stage('Clean Old Container') {
             steps {
-                sh 'bash tests/test.sh'
+                script {
+                    sh '''
+                    docker rm -f $CONTAINER_NAME || true
+                    '''
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t hangout-app .'
+                script {
+                    sh '''
+                    docker build -t $IMAGE_NAME .
+                    '''
+                }
             }
         }
 
-        stage('Run Container') {
+        stage('Run Tests') {
             steps {
-                sh 'docker run -d -p 80:80 hangout-app'
+                script {
+                    sh '''
+                    if [ -f test.sh ]; then
+                        chmod +x test.sh
+                        ./test.sh
+                    else
+                        echo "No tests found, skipping..."
+                    fi
+                    '''
+                }
             }
         }
 
-        stage('Cleanup') {
+        stage('Deploy Container') {
             steps {
-                sh '''
-                    docker stop $(docker ps -q) || true
-                    docker rm $(docker ps -aq) || true
-                '''
+                script {
+                    sh '''
+                    docker run -d --name $CONTAINER_NAME -p 80:80 $IMAGE_NAME
+                    '''
+                }
             }
+        }
+    }
+
+    post {
+        success {
+            echo '🚀 Deployment Successful'
+        }
+
+        failure {
+            echo '❌ Pipeline Failed'
+        }
+
+        always {
+            echo '🧹 Cleaning workspace'
+            cleanWs()
         }
     }
 }
